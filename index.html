@@ -2478,6 +2478,14 @@
     .cat-card-ico { width: 34px; height: 34px; }
   }
 </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyo1fPTdH0IFqQ=" crossorigin="">
+<style>
+#riceFieldMap{height:390px;width:100%;border:1px solid var(--rule);border-radius:12px;margin:12px 0;z-index:1}
+.rice-map-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.rice-map-coords{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0}
+.rice-map-coords input{max-width:150px;min-width:115px;padding:8px;border:1px solid var(--rule);border-radius:8px}
+.rice-tmd-status{font-size:.85rem;color:var(--ink-soft);margin:8px 0}
+</style>
 </head>
 <body>
 
@@ -2527,6 +2535,7 @@ SmartRice AI
 <iframe id="diseaseFrame" src="disease-model/frame.html" style="display:none" title="ตัวตรวจว่าเป็นโรคอะไร" aria-hidden="true"></iframe>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <!-- ตัวเลขต่อท้าย ?v= คือตัวบังคับให้เบราว์เซอร์โหลดไฟล์ใหม่
      ต้องบวกเลขนี้ขึ้น 1 ทุกครั้งที่แก้ไฟล์ความรู้ไฟล์ใดไฟล์หนึ่ง
 
@@ -7041,6 +7050,58 @@ views.plots = function (root) {
   paintTotal();
   root.appendChild(card);
 
+  // ปักหมุดแปลงนาของผู้ใช้: บันทึกแยกตามแปลงและบัญชีเดิม
+  var mapCard = plot("ปักหมุด: นี่คือที่นาของฉัน");
+  mapCard.appendChild(el("div", "plot-note", "แตะบนแผนที่หรือเลื่อนหมุดไปกลางแปลงนา แล้วกดบันทึก พิกัดนี้จะใช้แสดงอากาศของแปลงที่เลือก"));
+  var coordRow = el("div", "rice-map-coords");
+  var latInput = el("input"); latInput.type="number"; latInput.step="any"; latInput.placeholder="ละติจูด"; latInput.setAttribute("aria-label","ละติจูดแปลงนา");
+  var lonInput = el("input"); lonInput.type="number"; lonInput.step="any"; lonInput.placeholder="ลองจิจูด"; lonInput.setAttribute("aria-label","ลองจิจูดแปลงนา");
+  coordRow.appendChild(latInput); coordRow.appendChild(lonInput);
+  mapCard.appendChild(coordRow);
+  var mapHost = el("div"); mapHost.id="riceFieldMap"; mapCard.appendChild(mapHost);
+  var actions=el("div","rice-map-actions"), status=el("div","rice-tmd-status");
+  var save=el("button","act act-go act-sm","บันทึกหมุดที่นาของฉัน");
+  var gps=el("button","act act-line act-sm","ใช้ GPS ปัจจุบัน");
+  var apply=el("button","act act-line act-sm","ใช้พิกัดที่กรอก");
+  actions.appendChild(save); actions.appendChild(gps); actions.appendChild(apply);
+  mapCard.appendChild(actions);mapCard.appendChild(status);root.appendChild(mapCard);
+  var prior=fieldCoords();
+  var lat=prior?Number(prior.lat):16.05,lon=prior?Number(prior.lon):103.65;
+  function valid(a,b){return Number.isFinite(a)&&Number.isFinite(b)&&a>=-90&&a<=90&&b>=-180&&b<=180;}
+  var riceMap=null, marker=null;
+  function setPoint(a,b,zoom){
+    if(!valid(a,b)){status.textContent="พิกัดไม่ถูกต้อง";return;}
+    lat=a;lon=b;latInput.value=a.toFixed(6);lonInput.value=b.toFixed(6);
+    if(marker)marker.setLatLng([a,b]);
+    if(riceMap)riceMap.setView([a,b],zoom||riceMap.getZoom());
+    status.textContent="จุดที่เลือก: "+a.toFixed(6)+", "+b.toFixed(6)+(prior?" · บันทึกเดิมมีอยู่แล้ว":" · ยังไม่ได้บันทึก");
+  }
+  if(window.L){
+    riceMap=L.map(mapHost).setView([lat,lon],prior?15:7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(riceMap);
+    marker=L.marker([lat,lon],{draggable:true}).addTo(riceMap);
+    marker.bindPopup("ที่นาของฉัน");
+    riceMap.on("click",function(ev){setPoint(ev.latlng.lat,ev.latlng.lng);});
+    marker.on("dragend",function(){var q=marker.getLatLng();setPoint(q.lat,q.lng);});
+    setTimeout(function(){riceMap.invalidateSize();},250);
+  } else {mapHost.textContent="โหลดแผนที่ไม่ได้ แต่สามารถกรอกพิกัดได้";}
+  setPoint(lat,lon);
+  apply.onclick=function(){setPoint(Number(latInput.value),Number(lonInput.value),15);};
+  gps.onclick=async function(){
+    status.textContent="กำลังค้นหาตำแหน่ง...";
+    try{var fix=await getFix({timeout:15000});setPoint(fix.lat,fix.lon,17);
+      status.textContent+=" · ความคลาดเคลื่อน GPS ประมาณ "+Math.round(fix.accuracy)+" เมตร";
+    }catch(e){status.textContent=e.message;}
+  };
+  save.onclick=function(){
+    var a=Number(latInput.value),b=Number(lonInput.value);
+    if(!valid(a,b)){status.textContent="กรุณาใส่พิกัดที่ถูกต้องก่อนบันทึก";return;}
+    var f=readField()||{};f.lat=a;f.lon=b;f.fixMethod="tap";f.fixedAt=Date.now();
+    writeField(f);prior=fieldCoords();setPoint(a,b);
+    status.textContent="บันทึกแล้ว: นี่คือที่นาของฉัน — "+(Plots.active().name||"แปลงนี้")+" · ไปที่เมนูอากาศเพื่อดูข้อมูลจุดนี้";
+  };
+
   // ตัวเลขไร่ไม่ได้เอาไปคูณต้นทุน ต้องบอกให้ชัด ไม่งั้นผู้ใช้จะรอดูยอดรวมที่ไม่มีวันมา
   card.appendChild(more("จำนวนไร่เอาไปใช้ทำอะไร",
     "ใช้บอกภาพรวมว่าทำนาอยู่ทั้งหมดกี่ไร่ และคำนวณว่าต้องเตรียมเมล็ดพันธุ์กี่กิโลในส่วนวิธีทำนา " +
@@ -10691,6 +10752,35 @@ views.weather = async function (root) {
   }
 
   host.innerHTML = "";
+
+  // กรมอุตุนิยมวิทยา: ต้องผ่าน proxy ฝั่งเซิร์ฟเวอร์ เพื่อไม่เปิดเผย TMD access token
+  var tmdCard=plot("กรมอุตุนิยมวิทยา · พยากรณ์ตามพิกัดที่นา");
+  var tmdBody=el("div","rice-tmd-status","กำลังตรวจสอบข้อมูลกรมอุตุนิยมวิทยา...");
+  tmdCard.appendChild(el("div","read-foot","ที่นาที่เลือก: "+coords.lat.toFixed(6)+", "+coords.lon.toFixed(6)+" · ข้อมูลเป็นค่าพยากรณ์ตามพิกัด ไม่ใช่เครื่องวัดที่ตั้งอยู่ในนา"));
+  tmdCard.appendChild(tmdBody);
+  var tmdLink=el("a",null,"กรมอุตุนิยมวิทยา · เว็บไซต์ทางการ");
+  tmdLink.href="https://www.tmd.go.th/";tmdLink.target="_blank";tmdLink.rel="noopener noreferrer";
+  tmdCard.appendChild(tmdLink);host.appendChild(tmdCard);
+  (async function(){
+    try{
+      // URL ตั้งที่ window.SMARTRICE_TMD_PROXY_URL หรือใช้ /tmd-forecast บนเซิร์ฟเวอร์เดียวกัน
+      var endpoint=window.SMARTRICE_TMD_PROXY_URL||"/tmd-forecast";
+      var glue=endpoint.indexOf("?")>=0?"&":"?";
+      var r=await fetch(endpoint+glue+"lat="+encodeURIComponent(coords.lat)+"&lon="+encodeURIComponent(coords.lon),{headers:{"Accept":"application/json"}});
+      if(!r.ok)throw new Error("เซิร์ฟเวอร์กรมอุตุฯ ยังไม่พร้อม (HTTP "+r.status+")");
+      var d=await r.json();
+      if(!d||d.source!=="TMD"||!Array.isArray(d.forecasts)||!d.forecasts.length)throw new Error("ไม่ได้รับข้อมูล TMD ที่ตรวจสอบแหล่งที่มาได้");
+      tmdBody.innerHTML="";
+      d.forecasts.slice(0,4).forEach(function(x){
+        var t=el("div","prow");
+        var dt=el("div","prow-mid",new Date(x.time).toLocaleString("th-TH",{timeZone:"Asia/Bangkok",dateStyle:"short",timeStyle:"short"}));
+        var vals=[];if(x.tempC!=null)vals.push(Number(x.tempC).toFixed(1)+"°C");
+        if(x.humidity!=null)vals.push("ชื้น "+Math.round(x.humidity)+"%");
+        t.appendChild(dt);t.appendChild(el("div","prow-val",vals.join(" · ")||"ไม่มีค่าตัวแปร"));tmdBody.appendChild(t);
+      });
+      tmdBody.appendChild(el("div","read-foot","แหล่งข้อมูล: กรมอุตุนิยมวิทยา (TMD) · พยากรณ์จากแบบจำลอง ไม่ใช่ค่าตรวจวัดจริง"));
+    }catch(e){tmdBody.textContent="ยังเชื่อมต่อ TMD โดยตรงไม่ได้: "+e.message+" · ค่าฝนและแดดด้านล่างมาจาก Open-Meteo (แยกแหล่งข้อมูลชัดเจน)";}
+  })();
 
   // ── สิ่งที่ต้องทำ มาก่อนตัวเลข ──
   //
