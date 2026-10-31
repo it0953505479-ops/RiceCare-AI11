@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Mitr:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <style>
   :root {
     /* ══ จานสี "นาข้าวเช้าตรู่" — เขียว ขาว เขียวอ่อน ══
@@ -1569,6 +1570,48 @@
   .plotrow-del { color: var(--ink-faint); margin-left: auto; }
   .plotrow-del.danger { color: var(--rust); border-color: var(--rust); }
 
+  /* ── ปักหมุดที่นา + ป้ายบอกที่มาของอากาศ ── */
+  .pin-status { padding: 12px 14px; border-radius: var(--r-sm); background: var(--canopy);
+                border: 1px solid var(--leaf-pale); margin-bottom: 12px; }
+  .pin-status.none { background: #FBF3E0; border-color: #E8D3A0; }
+  .pin-status-head { font-weight: 600; color: var(--deep); line-height: 1.4; }
+  .pin-status.none .pin-status-head { color: #7A5A06; }
+  .pin-status-sub { font-size: .84rem; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
+  .pin-status-xy { font-family: "IBM Plex Mono", monospace; font-size: .78rem; color: var(--ink-faint); margin-top: 4px; }
+  .pin-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .pin-search { display: flex; gap: 8px; margin-bottom: 8px; }
+  .pin-search input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--rule);
+                      border-radius: var(--r-sm); font: inherit; font-size: .95rem; background: var(--paper); color: var(--ink); }
+  .pin-results { display: grid; gap: 6px; margin-bottom: 8px; }
+  .pin-res { text-align: left; padding: 10px 12px; border: 1px solid var(--rule); border-radius: var(--r-sm);
+             background: var(--paper); color: var(--ink); font: inherit; font-size: .9rem; cursor: pointer; }
+  .pin-res:hover { background: var(--canopy); border-color: var(--blade); }
+  .pin-res small { display: block; color: var(--ink-faint); font-size: .76rem; margin-top: 2px; }
+  .pin-msg { font-size: .84rem; line-height: 1.5; margin: 4px 0 8px; min-height: 1.2em; color: var(--ink-soft); }
+  .pin-msg.bad { color: var(--rust); }
+  .pin-msg.ok { color: var(--deep); }
+  .pin-layers { display: flex; gap: 6px; margin-bottom: 8px; }
+  .pin-chip { padding: 6px 13px; border-radius: 999px; border: 1px solid var(--rule); background: var(--paper);
+              font: inherit; font-size: .8rem; color: var(--ink-soft); cursor: pointer; }
+  .pin-chip.on { background: var(--deep); border-color: var(--deep); color: #fff; }
+  .pinmap { height: 340px; width: 100%; border: 1px solid var(--rule); border-radius: var(--r);
+            position: relative; z-index: 0; isolation: isolate; background: var(--canopy); overflow: hidden; }
+  .pinmap-off { padding: 26px 16px; text-align: center; font-size: .86rem; color: var(--ink-soft); }
+  .pin-ico { background: none; border: 0; }
+  .pin-ico span { display: block; width: 26px; height: 26px; margin: 3px 0 0 1px; background: #D84315;
+                  border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+                  box-shadow: 0 2px 7px rgba(0,0,0,.5); }
+  .pin-ico span::after { content: ""; position: absolute; left: 6px; top: 6px; width: 8px; height: 8px;
+                         border-radius: 50%; background: #fff; }
+  .wxloc { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+           padding: 12px 14px; border-radius: var(--r-sm); background: var(--canopy);
+           border: 1px solid var(--leaf-pale); margin-bottom: 14px; }
+  .wxloc.warn { background: #FBF3E0; border-color: #E8D3A0; }
+  .wxloc-head { font-weight: 600; color: var(--deep); line-height: 1.4; }
+  .wxloc.warn .wxloc-head { color: #7A5A06; }
+  .wxloc-sub { font-size: .82rem; color: var(--ink-soft); margin-top: 2px; line-height: 1.45; }
+  .wxloc-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+
   /* ── วิธีทำนา: ปุ่มเลือกเรียงแถวเดียว เลื่อนข้างได้บนมือถือ ── */
   .mchips { display: flex; gap: 8px; flex-wrap: wrap; }
 
@@ -2478,14 +2521,6 @@
     .cat-card-ico { width: 34px; height: 34px; }
   }
 </style>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyo1fPTdH0IFqQ=" crossorigin="">
-<style>
-#riceFieldMap{height:390px;width:100%;border:1px solid var(--rule);border-radius:12px;margin:12px 0;z-index:1}
-.rice-map-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
-.rice-map-coords{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0}
-.rice-map-coords input{max-width:150px;min-width:115px;padding:8px;border:1px solid var(--rule);border-radius:8px}
-.rice-tmd-status{font-size:.85rem;color:var(--ink-soft);margin:8px 0}
-</style>
 </head>
 <body>
 
@@ -2535,7 +2570,7 @@ SmartRice AI
 <iframe id="diseaseFrame" src="disease-model/frame.html" style="display:none" title="ตัวตรวจว่าเป็นโรคอะไร" aria-hidden="true"></iframe>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <!-- ตัวเลขต่อท้าย ?v= คือตัวบังคับให้เบราว์เซอร์โหลดไฟล์ใหม่
      ต้องบวกเลขนี้ขึ้น 1 ทุกครั้งที่แก้ไฟล์ความรู้ไฟล์ใดไฟล์หนึ่ง
 
@@ -4454,6 +4489,90 @@ function fieldCoords() {
     return { lat: f.lat, lon: f.lon, from: "ที่นาที่คุณปักหมุดไว้", field: f };
   }
   return null;
+}
+
+// ═══ ปักหมุดที่นา (ใช้ร่วมกันทั้งหน้าแปลงนาและหน้าอากาศ) ═══
+//
+// หมุดเก็บในระเบียนแปลงเดียวกับที่ fieldCoords() อ่าน ทุกหน้าที่ดูอากาศจึงตามหมุดนี้เสมอ
+// ทุกแปลงมีหมุดของตัวเอง (คีย์มีรหัสแปลงต่อท้าย) สลับแปลง = อากาศสลับตามหมุดของแปลงนั้น
+function readFieldOf(id) {
+  try { return JSON.parse(localStorage.getItem("smartrice-field:" + Plots._uid() + ":" + id) || "null"); }
+  catch (e) { return null; }
+}
+
+function savePin(lat, lon, method, accuracy) {
+  var f = readField() || {};
+  f.lat = Math.round(lat * 1e6) / 1e6;
+  f.lon = Math.round(lon * 1e6) / 1e6;
+  if (accuracy != null) f.accuracy = Math.round(accuracy); else delete f.accuracy;
+  f.fixMethod = method;
+  f.fixedAt = Date.now();
+  writeField(f);
+}
+
+function clearPin() {
+  var f = readField();
+  if (!f) return;
+  delete f.lat; delete f.lon; delete f.accuracy; delete f.fixMethod; delete f.fixedAt;
+  writeField(f);
+}
+
+// วาดส่วนสภาพอากาศใหม่เฉพาะส่วนเดียว ไม่ต้องโหลดทั้งหน้า (เรียกหลังปักหมุด/ย้ายหมุด/ลบหมุด)
+async function refreshWeatherSlot() {
+  var slot = document.getElementById("slot-weather");
+  if (!slot) return;
+  slot.innerHTML = "";
+  try { await views.weather(slot); }
+  catch (e) {
+    slot.innerHTML = "";
+    slot.appendChild(stateBlock("!", "ส่วนนี้เปิดไม่ได้", e.message));
+  }
+  growLeaves(slot);
+}
+
+// พาไปที่การ์ดปักหมุด (เปิดสาขา "ที่นา" แล้วเลื่อนไปหา)
+function goToPinCard() {
+  var b = revealPart("plots");
+  if (b && b.scrollIntoView) b.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ป้ายบอกว่าอากาศที่เห็นอยู่ เป็นของจุดไหน
+function wxLocBanner(source, fix) {
+  var plotName = (Plots.active() || {}).name || "ที่นา";
+  var f = readField();
+  var box = el("div", "wxloc" + (source === "pin" ? "" : " warn"));
+  var txt = el("div");
+  var btns = el("div", "wxloc-btns");
+
+  if (source === "pin") {
+    txt.appendChild(el("div", "wxloc-head", "อากาศของ " + plotName));
+    txt.appendChild(el("div", "wxloc-sub", "ตามหมุดที่คุณปักไว้" +
+      (f && f.fixedAt ? " · ปักเมื่อ" + ageWords(f.fixedAt) : "")));
+    var ch = el("button", "act act-line act-sm", "เปลี่ยนจุด");
+    ch.onclick = goToPinCard;
+    btns.appendChild(ch);
+  } else {
+    var why = source === "log" ? "ใช้ตำแหน่งจากบันทึกล่าสุดของคุณ"
+            : source === "gps" ? "ใช้ตำแหน่งที่คุณยืนอยู่ตอนนี้"
+            : "ยังไม่มีตำแหน่งให้ดูอากาศ";
+    txt.appendChild(el("div", "wxloc-head", "ยังไม่ได้ปักหมุด " + plotName));
+    txt.appendChild(el("div", "wxloc-sub", why + " อากาศอาจไม่ตรงกับที่นาของคุณ"));
+    if (source === "gps" && fix) {
+      var use = el("button", "act act-go act-sm", "ใช้จุดนี้เป็นที่นา");
+      use.onclick = function () {
+        savePin(fix.lat, fix.lon, "single", fix.accuracy);
+        if (typeof window.__pinRepaint === "function") { try { window.__pinRepaint(); } catch (e) {} }
+        refreshWeatherSlot();
+      };
+      btns.appendChild(use);
+    }
+    var go = el("button", "act act-line act-sm", "ปักหมุดที่นา");
+    go.onclick = goToPinCard;
+    btns.appendChild(go);
+  }
+  box.appendChild(txt);
+  box.appendChild(btns);
+  return box;
 }
 
 // ── พันธุ์ข้าวของแปลง ────────────────────────────
@@ -6962,6 +7081,274 @@ views.sdg = function (root) {
 // แยกกันเพราะสองอย่างนี้ทำคนละจังหวะ: สลับทุกวัน จัดการปีละไม่กี่ครั้ง
 // ถ้ายัดปุ่มลบไว้ในแถบสลับ วันหนึ่งจะมีคนกดพลาดแล้วข้อมูลทั้งแปลงหาย
 
+
+// ═══ การ์ดปักหมุดที่นา ═══
+//
+// ออกแบบให้ปักได้ใน 1 แตะ: (1) กดปุ่มปักตรงที่ยืนอยู่ (2) พิมพ์ชื่อตำบล/อำเภอแล้วเลือก
+// (3) แตะบนแผนที่ดาวเทียมตรงนาของตัวเอง แล้วลากหมุดปรับได้ ทุกครั้งที่ขยับจะบันทึกทันที
+// และวาดส่วนสภาพอากาศใหม่ให้ตามหมุดเลย ไม่ต้องกดบันทึกหรือรีเฟรช
+function buildPinCard() {
+  var card = plot(null);
+
+  var status = el("div", "pin-status");
+  card.appendChild(status);
+
+  // ปุ่มหลัก
+  var actions = el("div", "pin-actions");
+  var gpsBtn = el("button", "act act-go", "ปักตรงที่ฉันยืนอยู่");
+  actions.appendChild(gpsBtn);
+  var clearBtn = el("button", "act act-line act-sm", "ลบหมุด");
+  actions.appendChild(clearBtn);
+  card.appendChild(actions);
+
+  // ค้นหาชื่อสถานที่
+  var sRow = el("div", "pin-search");
+  var sIn = el("input");
+  sIn.type = "search";
+  sIn.placeholder = "หรือพิมพ์ชื่อตำบล / อำเภอ เช่น เกษตรวิสัย";
+  sIn.setAttribute("aria-label", "ค้นหาชื่อสถานที่");
+  var sBtn = el("button", "act act-line act-sm", "ค้นหา");
+  sRow.appendChild(sIn);
+  sRow.appendChild(sBtn);
+  card.appendChild(sRow);
+  var results = el("div", "pin-results");
+  card.appendChild(results);
+
+  var msg = el("div", "pin-msg", "แตะบนแผนที่ตรงที่นาของคุณ แล้วลากหมุดปรับให้ตรงได้");
+  card.appendChild(msg);
+  function say(text, kind) {
+    msg.textContent = text;
+    msg.className = "pin-msg" + (kind ? " " + kind : "");
+  }
+
+  // สลับชั้นแผนที่
+  var layers = el("div", "pin-layers");
+  var chipSat = el("button", "pin-chip", "ภาพดาวเทียม");
+  var chipOsm = el("button", "pin-chip", "แผนที่ถนน");
+  layers.appendChild(chipSat);
+  layers.appendChild(chipOsm);
+  card.appendChild(layers);
+
+  var mapBox = el("div", "pinmap");
+  card.appendChild(mapBox);
+
+  var map = null, marker = null, others = null, satLayer = null, osmLayer = null;
+  var mode = readField() && readField().lat != null ? "sat" : "osm";
+
+  function paintChips() {
+    chipSat.classList.toggle("on", mode === "sat");
+    chipOsm.classList.toggle("on", mode === "osm");
+  }
+  function applyMode() {
+    paintChips();
+    if (!map) return;
+    if (mode === "sat") { if (map.hasLayer(osmLayer)) map.removeLayer(osmLayer); satLayer.addTo(map); }
+    else { if (map.hasLayer(satLayer)) map.removeLayer(satLayer); osmLayer.addTo(map); }
+  }
+  chipSat.onclick = function () { mode = "sat"; applyMode(); };
+  chipOsm.onclick = function () { mode = "osm"; applyMode(); };
+  paintChips();
+
+  var wxTimer = null;
+  function queueWeather() {
+    clearTimeout(wxTimer);
+    wxTimer = setTimeout(refreshWeatherSlot, 450);
+  }
+
+  // วาดสถานะ + หมุดตามข้อมูลที่เก็บไว้
+  function paintStatus() {
+    var f = readField();
+    var plotName = (Plots.active() || {}).name || "ที่นา";
+    status.innerHTML = "";
+    var has = f && f.lat != null && f.lon != null;
+    status.className = "pin-status" + (has ? "" : " none");
+    clearBtn.hidden = !has;
+    if (!has) {
+      status.appendChild(el("div", "pin-status-head", "ยังไม่ได้ปักหมุด " + plotName));
+      status.appendChild(el("div", "pin-status-sub",
+        "ปักหมุดแล้วสภาพอากาศจะเป็นของที่นาคุณจริงๆ ไม่ใช่ของที่อื่น"));
+      return;
+    }
+    status.appendChild(el("div", "pin-status-head", "ปักหมุด " + plotName + " แล้ว"));
+    var m = FIX_METHODS[f.fixMethod];
+    var sub = (m ? m.thai : "ปักหมุด") + (f.fixedAt ? " · " + ageWords(f.fixedAt) : "");
+    status.appendChild(el("div", "pin-status-sub", sub));
+    if (f.accuracy != null) {
+      var an = accuracyNote(f.accuracy);
+      if (an.text) status.appendChild(el("div", "pin-status-sub", an.text));
+    }
+    status.appendChild(el("div", "pin-status-xy", f.lat.toFixed(5) + ", " + f.lon.toFixed(5)));
+  }
+
+  function paintMap(fly) {
+    if (!map) return;
+    var f = readField();
+    var has = f && f.lat != null && f.lon != null;
+
+    // หมุดของแปลงอื่น แสดงเป็นจุดเทา ไว้ดูตำแหน่งเทียบกัน
+    if (others) others.clearLayers();
+    var active = Plots.activeId();
+    Plots.list().forEach(function (pl) {
+      if (pl.id === active) return;
+      var o = readFieldOf(pl.id);
+      if (!o || o.lat == null || o.lon == null) return;
+      L.circleMarker([o.lat, o.lon], { radius: 7, color: "#fff", weight: 2, fillColor: "#7C9385", fillOpacity: 1 })
+        .bindTooltip(pl.name).addTo(others);
+    });
+
+    if (!has) {
+      if (marker) { map.removeLayer(marker); marker = null; }
+      return;
+    }
+    var ll = [f.lat, f.lon];
+    if (!marker) {
+      marker = L.marker(ll, {
+        draggable: true,
+        icon: L.divIcon({ className: "pin-ico", html: "<span></span>", iconSize: [28, 36], iconAnchor: [14, 34] })
+      }).addTo(map);
+      marker.on("dragend", function () {
+        var p = marker.getLatLng();
+        place(p.lat, p.lng, "tap", null, false);
+      });
+    } else {
+      marker.setLatLng(ll);
+    }
+    if (fly) map.setView(ll, Math.max(map.getZoom(), 17));
+  }
+
+  // บันทึกหมุด + อัปเดตทุกอย่างที่ตามหมุด
+  function place(lat, lon, method, accuracy, fly) {
+    savePin(lat, lon, method, accuracy);
+    paintStatus();
+    paintMap(fly);
+    queueWeather();
+  }
+
+  function initMap() {
+    if (map) return;
+    if (typeof L === "undefined") {
+      mapBox.className = "pinmap pinmap-off";
+      mapBox.textContent = "โหลดแผนที่ไม่สำเร็จ (ต้องต่ออินเทอร์เน็ต) ยังใช้ปุ่ม \"ปักตรงที่ฉันยืนอยู่\" หรือค้นหาชื่อสถานที่ได้";
+      layers.hidden = true;
+      return;
+    }
+    var f = readField();
+    var has = f && f.lat != null && f.lon != null;
+    map = L.map(mapBox, { zoomControl: true }).setView(has ? [f.lat, f.lon] : [15.0, 101.0], has ? 17 : 6);
+    satLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { maxZoom: 19, attribution: "ภาพ © Esri" });
+    osmLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      { maxZoom: 19, attribution: "© OpenStreetMap" });
+    others = L.layerGroup().addTo(map);
+    applyMode();
+    map.on("click", function (e) { place(e.latlng.lat, e.latlng.lng, "tap", null, false); say("บันทึกหมุดแล้ว กำลังอัปเดตสภาพอากาศตามจุดนี้", "ok"); });
+    paintMap(false);
+  }
+
+  // แผนที่อยู่ในสาขาที่พับเก็บอยู่ ต้องรอให้มีขนาดจริงก่อนถึงจะสร้างได้
+  if (typeof ResizeObserver !== "undefined") {
+    var ro = new ResizeObserver(function () {
+      if (!document.body.contains(mapBox)) return;
+      if (mapBox.clientWidth > 0 && mapBox.clientHeight > 0) {
+        if (!map) initMap(); else map.invalidateSize();
+      }
+    });
+    ro.observe(mapBox);
+  } else {
+    setTimeout(initMap, 300);
+  }
+
+  // ปักจากตำแหน่งปัจจุบัน
+  gpsBtn.onclick = async function () {
+    var old = gpsBtn.textContent;
+    gpsBtn.disabled = true;
+    gpsBtn.textContent = "กำลังหาตำแหน่ง…";
+    say("กำลังจับสัญญาณ GPS ถ้าอยู่ในอาคารให้ออกไปที่โล่ง", "");
+    try {
+      var fix = await getFix({ timeout: 15000 });
+      place(fix.lat, fix.lon, "single", fix.accuracy, true);
+      var an = accuracyNote(fix.accuracy);
+      say("ปักหมุดแล้ว " + (an.text ? an.text + " · " : "") + "ลากหมุดปรับได้ถ้ายังไม่ตรง", an.ok ? "ok" : "bad");
+    } catch (e) {
+      say(e.message, "bad");
+    } finally {
+      gpsBtn.disabled = false;
+      gpsBtn.textContent = old;
+    }
+  };
+
+  // ลบหมุด (แตะสองครั้งกันกดพลาด)
+  clearBtn.onclick = function () {
+    if (clearBtn.dataset.sure !== "1") {
+      clearBtn.dataset.sure = "1";
+      clearBtn.textContent = "กดอีกครั้งเพื่อลบ";
+      setTimeout(function () { clearBtn.dataset.sure = ""; clearBtn.textContent = "ลบหมุด"; }, 3500);
+      return;
+    }
+    clearBtn.dataset.sure = "";
+    clearBtn.textContent = "ลบหมุด";
+    clearPin();
+    paintStatus();
+    paintMap(false);
+    say("ลบหมุดแล้ว", "");
+    queueWeather();
+  };
+
+  // ค้นหาชื่อสถานที่ (Open-Meteo Geocoding ฟรี ไม่ต้องใช้คีย์)
+  async function doSearch() {
+    var q = sIn.value.trim();
+    if (!q) return;
+    results.innerHTML = "";
+    results.appendChild(el("div", "read-foot", "กำลังค้นหา…"));
+    try {
+      var r = await fetch("https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(q) +
+        "&count=8&language=th&countryCode=TH&format=json");
+      if (!r.ok) throw new Error("ค้นหาไม่สำเร็จ ลองใหม่อีกครั้ง");
+      var d = await r.json();
+      var list = d.results || [];
+      results.innerHTML = "";
+      if (!list.length) {
+        results.appendChild(el("div", "read-foot", "ไม่พบชื่อนี้ ลองพิมพ์ชื่อตำบลหรืออำเภอ หรือแตะบนแผนที่แทน"));
+        return;
+      }
+      list.forEach(function (it) {
+        var b = el("button", "pin-res", it.name);
+        var where = [it.admin3, it.admin2, it.admin1].filter(Boolean).join(" · ");
+        if (where) b.appendChild(el("small", "", where));
+        b.onclick = function () {
+          results.innerHTML = "";
+          sIn.value = "";
+          mode = "sat"; applyMode();
+          place(it.latitude, it.longitude, "tap", null, true);
+          say("ย้ายหมุดมาที่ " + it.name + " แล้ว แตะแผนที่หรือลากหมุดให้ตรงนาของคุณอีกที", "ok");
+        };
+        results.appendChild(b);
+      });
+    } catch (e) {
+      results.innerHTML = "";
+      say(e.message || "ค้นหาไม่สำเร็จ", "bad");
+    }
+  }
+  sBtn.onclick = doSearch;
+  sIn.onkeydown = function (e) { if (e.key === "Enter") { e.preventDefault(); doSearch(); } };
+
+  // ให้ที่อื่น (เช่นปุ่ม "ใช้จุดนี้เป็นที่นา" ในหน้าอากาศ) สั่งวาดการ์ดนี้ใหม่ได้
+  window.__pinRepaint = function () {
+    if (!document.body.contains(card)) return;
+    paintStatus();
+    paintMap(true);
+  };
+
+  paintStatus();
+
+  card.appendChild(more("หมุดนี้ใช้ทำอะไร",
+    "สภาพอากาศทั้งหมด (ฝน แดด ความชื้น ค่าปัจจุบัน) จะดึงตามจุดที่ปักไว้ แต่ละที่นามีหมุดของตัวเอง " +
+    "เปลี่ยนที่นาด้านบนแล้วอากาศจะเปลี่ยนตามหมุดของที่นานั้น ข้อมูลอากาศเป็นค่าพยากรณ์ของจุดใกล้เคียง ไม่ใช่เครื่องวัดในนา " +
+    "ปักด้วย GPS ตอนยืนอยู่ในนาจะแม่นกว่าแตะแผนที่ และหมุดเก็บไว้ในเครื่องนี้"));
+
+  return card;
+}
+
 views.plots = function (root) {
   root.appendChild(bund("ที่นา"));
 
@@ -7050,63 +7437,15 @@ views.plots = function (root) {
   paintTotal();
   root.appendChild(card);
 
-  // ปักหมุดแปลงนาของผู้ใช้: บันทึกแยกตามแปลงและบัญชีเดิม
-  var mapCard = plot("ปักหมุด: นี่คือที่นาของฉัน");
-  mapCard.appendChild(el("div", "plot-note", "แตะบนแผนที่หรือเลื่อนหมุดไปกลางแปลงนา แล้วกดบันทึก พิกัดนี้จะใช้แสดงอากาศของแปลงที่เลือก"));
-  var coordRow = el("div", "rice-map-coords");
-  var latInput = el("input"); latInput.type="number"; latInput.step="any"; latInput.placeholder="ละติจูด"; latInput.setAttribute("aria-label","ละติจูดแปลงนา");
-  var lonInput = el("input"); lonInput.type="number"; lonInput.step="any"; lonInput.placeholder="ลองจิจูด"; lonInput.setAttribute("aria-label","ลองจิจูดแปลงนา");
-  coordRow.appendChild(latInput); coordRow.appendChild(lonInput);
-  mapCard.appendChild(coordRow);
-  var mapHost = el("div"); mapHost.id="riceFieldMap"; mapCard.appendChild(mapHost);
-  var actions=el("div","rice-map-actions"), status=el("div","rice-tmd-status");
-  var save=el("button","act act-go act-sm","บันทึกหมุดที่นาของฉัน");
-  var gps=el("button","act act-line act-sm","ใช้ GPS ปัจจุบัน");
-  var apply=el("button","act act-line act-sm","ใช้พิกัดที่กรอก");
-  actions.appendChild(save); actions.appendChild(gps); actions.appendChild(apply);
-  mapCard.appendChild(actions);mapCard.appendChild(status);root.appendChild(mapCard);
-  var prior=fieldCoords();
-  var lat=prior?Number(prior.lat):16.05,lon=prior?Number(prior.lon):103.65;
-  function valid(a,b){return Number.isFinite(a)&&Number.isFinite(b)&&a>=-90&&a<=90&&b>=-180&&b<=180;}
-  var riceMap=null, marker=null;
-  function setPoint(a,b,zoom){
-    if(!valid(a,b)){status.textContent="พิกัดไม่ถูกต้อง";return;}
-    lat=a;lon=b;latInput.value=a.toFixed(6);lonInput.value=b.toFixed(6);
-    if(marker)marker.setLatLng([a,b]);
-    if(riceMap)riceMap.setView([a,b],zoom||riceMap.getZoom());
-    status.textContent="จุดที่เลือก: "+a.toFixed(6)+", "+b.toFixed(6)+(prior?" · บันทึกเดิมมีอยู่แล้ว":" · ยังไม่ได้บันทึก");
-  }
-  if(window.L){
-    riceMap=L.map(mapHost).setView([lat,lon],prior?15:7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(riceMap);
-    marker=L.marker([lat,lon],{draggable:true}).addTo(riceMap);
-    marker.bindPopup("ที่นาของฉัน");
-    riceMap.on("click",function(ev){setPoint(ev.latlng.lat,ev.latlng.lng);});
-    marker.on("dragend",function(){var q=marker.getLatLng();setPoint(q.lat,q.lng);});
-    setTimeout(function(){riceMap.invalidateSize();},250);
-  } else {mapHost.textContent="โหลดแผนที่ไม่ได้ แต่สามารถกรอกพิกัดได้";}
-  setPoint(lat,lon);
-  apply.onclick=function(){setPoint(Number(latInput.value),Number(lonInput.value),15);};
-  gps.onclick=async function(){
-    status.textContent="กำลังค้นหาตำแหน่ง...";
-    try{var fix=await getFix({timeout:15000});setPoint(fix.lat,fix.lon,17);
-      status.textContent+=" · ความคลาดเคลื่อน GPS ประมาณ "+Math.round(fix.accuracy)+" เมตร";
-    }catch(e){status.textContent=e.message;}
-  };
-  save.onclick=function(){
-    var a=Number(latInput.value),b=Number(lonInput.value);
-    if(!valid(a,b)){status.textContent="กรุณาใส่พิกัดที่ถูกต้องก่อนบันทึก";return;}
-    var f=readField()||{};f.lat=a;f.lon=b;f.fixMethod="tap";f.fixedAt=Date.now();
-    writeField(f);prior=fieldCoords();setPoint(a,b);
-    status.textContent="บันทึกแล้ว: นี่คือที่นาของฉัน — "+(Plots.active().name||"แปลงนี้")+" · ไปที่เมนูอากาศเพื่อดูข้อมูลจุดนี้";
-  };
-
   // ตัวเลขไร่ไม่ได้เอาไปคูณต้นทุน ต้องบอกให้ชัด ไม่งั้นผู้ใช้จะรอดูยอดรวมที่ไม่มีวันมา
   card.appendChild(more("จำนวนไร่เอาไปใช้ทำอะไร",
     "ใช้บอกภาพรวมว่าทำนาอยู่ทั้งหมดกี่ไร่ และคำนวณว่าต้องเตรียมเมล็ดพันธุ์กี่กิโลในส่วนวิธีทำนา " +
     "ส่วนต้นทุนทุกช่องในเว็บนี้คิดเป็นบาทต่อไร่ตลอด ไม่คูณกลับเป็นยอดทั้งแปลง " +
     "เพราะบาทต่อไร่คือหน่วยที่เทียบข้ามแปลงและข้ามปีได้ทันทีโดยไม่ต้องหาร"));
+
+  // ปักหมุดที่นาที่กำลังดูอยู่ (อากาศตามหมุดนี้)
+  root.appendChild(bund("ปักหมุดที่นา"));
+  root.appendChild(buildPinCard());
 };
 
 // ตัดศูนย์ท้ายทศนิยมทิ้ง 12.0 -> 12 แต่ 12.5 ยังเป็น 12.5
@@ -10711,31 +11050,39 @@ views.weather = async function (root) {
   host.appendChild(stateBlock("◌", "กำลังหาตำแหน่ง", null));
   root.appendChild(host);
 
-  // ใช้พิกัดที่เคยบันทึกไว้ก่อน ถ้าไม่มีค่อยขอตำแหน่งปัจจุบัน
-  // เพราะพิกัดแปลงที่บันทึกไว้ตรงกับที่ต้องการดูมากกว่าตำแหน่งที่ผู้ใช้ยืนอยู่ตอนนี้
-  var logs = await Store.list();
-  var saved = logs.filter(function (l) { return l.gps && l.gps.indexOf(",") !== -1; })[0];
-
-  var coords = null;
+  // ใช้ token กันผลเก่าเขียนทับ เวลาผู้ใช้ย้ายหมุดรัวๆ จะมีหลายรอบวิ่งพร้อมกัน เอาเฉพาะรอบล่าสุด
+  var wxTok = (window.__wxTok = (window.__wxTok || 0) + 1);
 
   // ลำดับความสำคัญ: ที่นาที่ปักหมุดไว้ → พิกัดจากบันทึกเก่า → ตำแหน่งปัจจุบัน
   // ที่นาที่ปักหมุดมาก่อนเสมอ เพราะเป็นจุดที่ผู้ใช้ตั้งใจกำหนดเอง
+  var coords = null, source = "pin", gpsFix = null;
+  var logs = await Store.list();
+  if (wxTok !== window.__wxTok) return;
   var pinned = fieldCoords();
-  var fieldRec = readField();
   if (pinned) {
     coords = { lat: pinned.lat, lon: pinned.lon };
-  } else if (saved) {
-    var parts = saved.gps.split(",").map(Number);
-    coords = { lat: parts[0], lon: parts[1] };
+    source = "pin";
   } else {
-    try {
-      var pos = await getFix({ timeout: 12000 });
-      coords = { lat: pos.lat, lon: pos.lon };
-    } catch (err) {
-      host.innerHTML = "";
-      host.appendChild(stateBlock("!", "ยังดูสภาพอากาศไม่ได้",
-        "เปิดสิทธิ์ตำแหน่งให้เบราว์เซอร์แล้วรีเฟรช"));
-      return;
+    var saved = logs.filter(function (l) { return l.gps && l.gps.indexOf(",") !== -1; })[0];
+    if (saved) {
+      var parts = saved.gps.split(",").map(Number);
+      coords = { lat: parts[0], lon: parts[1] };
+      source = "log";
+    } else {
+      try {
+        var pos = await getFix({ timeout: 12000 });
+        if (wxTok !== window.__wxTok) return;
+        coords = { lat: pos.lat, lon: pos.lon };
+        gpsFix = pos;
+        source = "gps";
+      } catch (err) {
+        if (wxTok !== window.__wxTok) return;
+        host.innerHTML = "";
+        host.appendChild(wxLocBanner("none"));
+        host.appendChild(stateBlock("!", "ยังดูสภาพอากาศไม่ได้",
+          "ปักหมุดที่นาเพื่อดูอากาศได้เลย ไม่ต้องเปิด GPS"));
+        return;
+      }
     }
   }
 
@@ -10746,41 +11093,17 @@ views.weather = async function (root) {
   try {
     w = await fetchWeather(coords.lat.toFixed(4), coords.lon.toFixed(4));
   } catch (err) {
+    if (wxTok !== window.__wxTok) return;
     host.innerHTML = "";
+    host.appendChild(wxLocBanner(source, gpsFix));
     host.appendChild(stateBlock("!", "ดึงข้อมูลอากาศไม่สำเร็จ", "ลองรีเฟรชอีกครั้ง"));
     return;
   }
+  if (wxTok !== window.__wxTok) return;
 
   host.innerHTML = "";
-
-  // กรมอุตุนิยมวิทยา: ต้องผ่าน proxy ฝั่งเซิร์ฟเวอร์ เพื่อไม่เปิดเผย TMD access token
-  var tmdCard=plot("กรมอุตุนิยมวิทยา · พยากรณ์ตามพิกัดที่นา");
-  var tmdBody=el("div","rice-tmd-status","กำลังตรวจสอบข้อมูลกรมอุตุนิยมวิทยา...");
-  tmdCard.appendChild(el("div","read-foot","ที่นาที่เลือก: "+coords.lat.toFixed(6)+", "+coords.lon.toFixed(6)+" · ข้อมูลเป็นค่าพยากรณ์ตามพิกัด ไม่ใช่เครื่องวัดที่ตั้งอยู่ในนา"));
-  tmdCard.appendChild(tmdBody);
-  var tmdLink=el("a",null,"กรมอุตุนิยมวิทยา · เว็บไซต์ทางการ");
-  tmdLink.href="https://www.tmd.go.th/";tmdLink.target="_blank";tmdLink.rel="noopener noreferrer";
-  tmdCard.appendChild(tmdLink);host.appendChild(tmdCard);
-  (async function(){
-    try{
-      // URL ตั้งที่ window.SMARTRICE_TMD_PROXY_URL หรือใช้ /tmd-forecast บนเซิร์ฟเวอร์เดียวกัน
-      var endpoint=window.SMARTRICE_TMD_PROXY_URL||"/tmd-forecast";
-      var glue=endpoint.indexOf("?")>=0?"&":"?";
-      var r=await fetch(endpoint+glue+"lat="+encodeURIComponent(coords.lat)+"&lon="+encodeURIComponent(coords.lon),{headers:{"Accept":"application/json"}});
-      if(!r.ok)throw new Error("เซิร์ฟเวอร์กรมอุตุฯ ยังไม่พร้อม (HTTP "+r.status+")");
-      var d=await r.json();
-      if(!d||d.source!=="TMD"||!Array.isArray(d.forecasts)||!d.forecasts.length)throw new Error("ไม่ได้รับข้อมูล TMD ที่ตรวจสอบแหล่งที่มาได้");
-      tmdBody.innerHTML="";
-      d.forecasts.slice(0,4).forEach(function(x){
-        var t=el("div","prow");
-        var dt=el("div","prow-mid",new Date(x.time).toLocaleString("th-TH",{timeZone:"Asia/Bangkok",dateStyle:"short",timeStyle:"short"}));
-        var vals=[];if(x.tempC!=null)vals.push(Number(x.tempC).toFixed(1)+"°C");
-        if(x.humidity!=null)vals.push("ชื้น "+Math.round(x.humidity)+"%");
-        t.appendChild(dt);t.appendChild(el("div","prow-val",vals.join(" · ")||"ไม่มีค่าตัวแปร"));tmdBody.appendChild(t);
-      });
-      tmdBody.appendChild(el("div","read-foot","แหล่งข้อมูล: กรมอุตุนิยมวิทยา (TMD) · พยากรณ์จากแบบจำลอง ไม่ใช่ค่าตรวจวัดจริง"));
-    }catch(e){tmdBody.textContent="ยังเชื่อมต่อ TMD โดยตรงไม่ได้: "+e.message+" · ค่าฝนและแดดด้านล่างมาจาก Open-Meteo (แยกแหล่งข้อมูลชัดเจน)";}
-  })();
+  // บอกชัดว่าอากาศที่เห็นเป็นของจุดไหน (หมุดที่นา หรือตำแหน่งสำรอง)
+  host.appendChild(wxLocBanner(source, gpsFix));
 
   // ── สิ่งที่ต้องทำ มาก่อนตัวเลข ──
   //
